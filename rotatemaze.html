@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>回転迷路</title>
+<script>
+let mapCanvas, mapContext;          //マップ用カンバス
+let playCanvas, playContext;        //ゲーム用キャンバス
+const mapImage = new Image();       //マップ画像
+const blocks = new Array();         //ブロック
+const ballRadius = 20;              //ボールの半径
+let sx, sy, x, y, vx, vy;           //スタート位置、ボールの座標、速度
+let gAngle = Math.PI/2;             //重力方向（下向き）
+let startTime, timer;               //開始時間、タイマー
+
+//マップデータ（#：ブロック、S：スタート、G：ゴール）
+const map = [
+    "##### ##############"
+    "#S  # #  #         #"
+    "#   # ##     # #   #"
+    "##  # #  #   # ### #"
+    " #  # #  ## ##  G# #"
+    " # ## #      #  G# #"
+    "## ## ## #   # ### #"
+    "#   ###    ###     #"
+    "# #       ## #     #"
+    "###########  #######"];
+
+//ブロッククラス
+class Block {                            //Blockクラスを作成
+   constructor(x, y, type, color) {
+       this.x = (x + 0.5) * blockSize;   //ブロックの中心座標
+       this.y = (y + 0.5) * blockSize;
+       this.type = type;                 //タイプ（normal/goal）
+       this.color = color;               //色
+       //描画
+       const [x1, y1] = [this.x - blockSize/2, this.y - blockSize/2];   //ブロックの左上の座標を計算
+       mapContext.strokeStyle = "black";
+       mapContext.fillStyle = this.color;
+       mapContext.strokeRect(x1, y1, blockSize, blockSize);             //正方形を描く
+       mapContext.strokeRect(x1, y1, blockSize, blockSize);
+   }
+}
+
+
+
+
