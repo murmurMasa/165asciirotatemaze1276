@@ -8,6 +8,7 @@ let mapCanvas, mapContext;          //マップ用カンバス
 let playCanvas, playContext;        //ゲーム用キャンバス
 const mapImage = new Image();       //マップ画像
 const blocks = new Array();         //ブロック
+const blockSize = 100;              //ブロックの1辺の長さ
 const ballRadius = 20;              //ボールの半径
 let sx, sy, x, y, vx, vy;           //スタート位置、ボールの座標、速度
 let gAngle = Math.PI/2;             //重力方向（下向き）
@@ -15,15 +16,15 @@ let startTime, timer;               //開始時間、タイマー
 
 //マップデータ（#：ブロック、S：スタート、G：ゴール）
 const map = [
-    "##### ##############"
-    "#S  # #  #         #"
-    "#   # ##     # #   #"
-    "##  # #  #   # ### #"
-    " #  # #  ## ##  G# #"
-    " # ## #      #  G# #"
-    "## ## ## #   # ### #"
-    "#   ###    ###     #"
-    "# #       ## #     #"
+    "##### ##############",
+    "#S  # #  #         #",
+    "#   # ##     # #   #",
+    "##  # #  #   # ### #",
+    " #  # #  ## ##  G# #",
+    " # ## #      #  G# #",
+    "## ## ## #   # ### #",
+    "#   ###    ###     #",
+    "# #       ## #     #",
     "###########  #######"];
 
 //ブロッククラス
@@ -37,11 +38,141 @@ class Block {                            //Blockクラスを作成
        const [x1, y1] = [this.x - blockSize/2, this.y - blockSize/2];   //ブロックの左上の座標を計算
        mapContext.strokeStyle = "black";
        mapContext.fillStyle = this.color;
-       mapContext.strokeRect(x1, y1, blockSize, blockSize);             //正方形を描く
+       mapContext.fillRect(x1, y1, blockSize, blockSize);             //正方形を描く
        mapContext.strokeRect(x1, y1, blockSize, blockSize);
    }
 }
 
+const init = () => {
+    //キャンバスの取得
+    mapCanvas = document.getElementById("map");                         //マップキャンバスを取得
+    mapContext = mapCanvas.getContext("2d");
+    playCanvas = document.getElementById("play");                       //ゲーム用キャンバスを取得
+    playContext = playCanvas.getContext("2d");
+    //マップの作成
+    for (let i = 0; i < map.length; i++) {
+        for (let j = 0; j < map[i].length; j++) {
+            const char = map[i].charAt(j);                               //マップデータから1文字取り出す
+            if (char == "#") {
+                //ブロック
+                blocks.push(new Block(j, i, "normal", "orange"));       //「＃」ならオレンジ色の壁
+            } else if (char == "S") {
+                //スタート地点
+                sx = (j + 0.5) * blockSize;
+                sy = (i + 0.5) * blockSize;
+                [x, y] = [sx, sy];
+            } else if (char == "G") {
+                //ゴール
+                blocks.push(new Block(j, i, "goal", "gray"));           //「Ｇ」ならグレーの壁
+            }
+        }
+    }
+    mapImage.src = mapCanvas.toDataURL();
+    mapImage.onload = () => {draw();}
+    //キーボード操作
+    document.addEventListener("keydown", rotate);                       //キーが押されたならrotate()関数を実行
+}
+
+const startGame = () => {
+    //ゲームスタート
+    [x, y, vx, vy, gAngle] = [sx, sy, 0, 0, Math.PI/2];
+    startTime = Date.now();
+    if (timer != null) clearInterval(timer);                            //タイマーをクリア
+    timer = setInterval(update, 100);                                   //100ミリ秒ごとにupdate()関数を実行
+}
+
+const update = () => {
+    //ボールの移動
+    vx += Math.cos(gAngle);
+    vy += Math.sin(gAngle);
+    const speed = (vx ** 2 + vy **2) ** 0.5;
+    if (speed >= ballRadius) {                                          //ボールのスピードがボールの半径を超えないように調整
+        vx *= ballRadius / speed;
+        vy *= ballRadius / speed;
+    }
+    x += vx;
+    y += vy;
+    //衝突判定
+    let checkGoal = false;
+    const [r1, r2] = [ballRadius, blockSize / 2];
+    for (const block of blocks) {                   //壁の数だけくり返し
+       const [dx, dy] = [x - block.x, y - block.y];
+       if ((Math.abs(dy) < r1 + r2)&&(Math.abs(dx) <= r2)) {           //ボールの壁の上辺または下辺に当たったとき
+          //Y方向の跳ね返り
+          vy *= -1;
+          if (Math.abs(vy) > 2) vy *= 0.5;                             //ボールのｙ方向のスピードが２より大きいなら半分に減速
+          y = block.y + Math.sign(dy) * (r1 + r2);
+          if (block.type == "goal") checkGoal = true;
+       }
+       if ((Math.abs(dx) < r1 + r2)&&(Math.abs(dy) <= r2)) {           //ボールが壁の左辺または右辺に当たったとき
+           //X方向の跳ね返り
+           vx *= -1;
+           if (Math.abs(vx) > 2) vx *= 0.5;
+           x = block.x + Math.sign(dx) * (r1 + r2);                    //ボールの座標を壁の外に戻す
+           if (block.type == "goal") checkGoal = true;
+        }
+    }
+    //描画
+    draw();
+    //タイムの表示
+    const time = ((Date.now() - startTime)/1000).toFixed(1);          //経過時間を小数点以下1桁で求める
+    document.getElementById("time").innerText = `TIME : ${time}`;     //経過時間を表示
+    //ゴール判定
+    if (checkGoal) {
+        //ゲーム終了
+        clearInterval(timer);
+        timer = null;
+        playContext.font = "bold 100px sans-serif";
+        playContext.textAlign = "center";                           //文字の位置、上下左右センター
+        playContext.textBaseline = "middle";
+        playContext.fillStyle = "red";
+        playContext.fillText("GOAL!!", 250, 250);
+    }
+    
+}
+const draw = () => {
+    //マップ画像を回転して描画
+    const [cx, cy] = [playCanvas.width / 2, playCanvas.height /2];  //ゲーム用キャンバスの中心座標
+    playContext.clearRect(0, 0, playCanvas.width, playCanvas.height);
+    playContext.save();
+    playContext.translate(cx, cy);
+    playContext.rotate(Math.PI/2 - gAngle);                         //ゲーム用キャンバスを重力の向きに合わせて回転
+    const w = playCanvas.width * Math.sqrt(2);
+    playContext.drawImage(mapImage, x - w/2, y - w/2, w, w, -w/2, -w/2, w, w);    //マップ画像の該当部分をプレイ用キャンバスにコピー
+    playContext.restore();
+    //ボールの描画
+    const r = ballRadius;
+    playContext.fillStyle = "blue";
+    playContext.beginPath();
+    playContext.arc(cx, cy, r, 0, Math.PI*2);                       //半径rの青色の円を描く
+    playContext.fill();
+    playContext.fillStyle = "white";
+    playContext.beginPath();
+    playContext.arc(cx - r/3, cy - r/3, r/3, 0, Math.PI*2);         //半径r/3の白色の円（光沢）を描く
+    playContext.fill();
+}
+
+const rotate = event => {
+    //重力方向回転（方向キー左：時計回り、方向キー右：反時計周り）
+    if (event.key == "ArrowRight") gAngle += 0.1;
+    if (event.key == "ArrowLeft") gAngle -= 0.1;
+}
+</script>
+<style>
+    #map {display: none;}   /*マップ用キャンバスは表示しない*/
+    #play {border: thin solid gray;}    /*ゲーム用キャンバスの枠用　グレー*/
+</style>
+</head>
+<body onload="init()">
+<p>回転迷路</p>
+<input type= "button" value="ゲームスタート" onclick="startGame()">
+[←]：時計回り　[→]：反時計回り
+<hr>
+<div id="time">TIME ： 0.0</div>
+<canvas id="map" width="2000" height="1000"></canvas>
+<canvas id="play" width="500" height="500"></canvas>
+</body>
+</html>
 
 
 
